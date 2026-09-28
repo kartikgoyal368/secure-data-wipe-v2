@@ -29,7 +29,7 @@ export default function Globe(props: any) {
         color: ['#10b981', '#22c55e', '#34d399', '#4ade80'][Math.floor(Math.random() * 4)]
       }));
 
-      globe = GlobeGL()(containerRef.current as HTMLElement)
+      globe = (GlobeGL as any)()(containerRef.current as HTMLElement)
         .globeImageUrl('//unpkg.com/three-globe/example/img/earth-dark.jpg') // Dark aesthetic
         .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
         .backgroundColor('rgba(0, 0, 0, 0)') // Transparent background to blend in
@@ -38,7 +38,7 @@ export default function Globe(props: any) {
         .width(width)
         .height(height)
         .particlesData(gData)
-        .particlesList(d => [d]) // Treat each particle object as its own set of 1 particle
+        .particlesList((d: any) => [d]) // Treat each particle object as its own set of 1 particle
         .particleLat('lat')
         .particleLng('lng')
         .particleAltitude('alt')
