@@ -10,6 +10,8 @@
 #include "integrated_wipe.h"
 #include "verify.h"
 #include "utils.h"
+#include "file_erase.h"
+#include "file_carve.h"
 
 void print_usage(const char *program_name) {
     printf("=== WipeSure - Secure Data Wiping Tool ===\n");
@@ -18,6 +20,9 @@ void print_usage(const char *program_name) {
     printf("  list                    - List all storage devices\n");
     printf("  info <device>           - Show detailed device information\n");
     printf("  wipe <device> [logfile] - Wipe a device securely\n");
+    printf("  wipe-file <file>        - Securely wipe a single file\n");
+    printf("  wipe-folder <dir>       - Securely wipe a folder recursively\n");
+    printf("  carve <device> <outdir> - Forensically carve and recover files\n");
     printf("  test                    - Run system self-test\n");
     printf("  interactive             - Start interactive mode (default)\n");
     printf("\nExamples:\n");
@@ -170,6 +175,50 @@ void wipe_command(const char *device_path, const char *log_file) {
         } else {
             printf("(could not open log file for display)\n");
         }
+    }
+}
+
+void wipe_file_command(const char *filepath) {
+    printf("=== Starting Secure File Wipe ===\n");
+    printf("Target File: %s\n", filepath);
+    char *log_output = NULL;
+    int result = secure_erase_file(filepath, ERASE_PASS_DOD_5220_22_M, &log_output);
+    printf("Result: %s\n", result == 0 ? "SUCCESS" : "FAILED");
+    if (log_output) {
+        printf("Details: %s\n", log_output);
+        free(log_output);
+    }
+}
+
+void wipe_folder_command(const char *folderpath) {
+    printf("=== Starting Secure Folder Wipe ===\n");
+    printf("Target Folder: %s\n", folderpath);
+    char *log_output = NULL;
+    int result = secure_erase_folder(folderpath, ERASE_PASS_DOD_5220_22_M, &log_output);
+    printf("Result: %s\n", result == 0 ? "SUCCESS" : "FAILED");
+    if (log_output) {
+        printf("Details: %s\n", log_output);
+        free(log_output);
+    }
+}
+
+void carve_command(const char *device_path, const char *output_dir) {
+    printf("=== Starting Advanced File Carving ===\n");
+    printf("Target Device: %s\n", device_path);
+    printf("Output Directory: %s\n", output_dir);
+    
+    char *log_output = NULL;
+    int result = carve_files(device_path, output_dir, &log_output);
+    
+    if (result >= 0) {
+        printf("Carving SUCCESS: Recovered %d files.\n", result);
+    } else {
+        printf("Carving FAILED.\n");
+    }
+    
+    if (log_output) {
+        printf("Details:\n%s\n", log_output);
+        free(log_output);
     }
 }
 
@@ -365,6 +414,30 @@ int main(int argc, char *argv[]) {
             } else {
                 const char *log_file = (argc >= 4) ? argv[3] : NULL;
                 wipe_command(argv[2], log_file);
+            }
+        }
+        else if (strcmp(command, "wipe-file") == 0) {
+            if (argc < 3) {
+                printf("Error: File path required\n");
+                return_code = 1;
+            } else {
+                wipe_file_command(argv[2]);
+            }
+        }
+        else if (strcmp(command, "wipe-folder") == 0) {
+            if (argc < 3) {
+                printf("Error: Folder path required\n");
+                return_code = 1;
+            } else {
+                wipe_folder_command(argv[2]);
+            }
+        }
+        else if (strcmp(command, "carve") == 0) {
+            if (argc < 4) {
+                printf("Error: Device path and output directory required\n");
+                return_code = 1;
+            } else {
+                carve_command(argv[2], argv[3]);
             }
         }
         else if (strcmp(command, "test") == 0) {

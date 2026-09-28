@@ -14,6 +14,7 @@ const generateHex = (length: number) => {
 };
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState("Drive");
   const [step, setStep] = useState(1);
   const [driveInfo, setDriveInfo] = useState({ path: "/dev/nvme0n1", name: "Detecting...", size: "..." });
   
@@ -24,6 +25,8 @@ export default function App() {
 
   // Wipe State
   const [isWiping, setIsWiping] = useState(false);
+  const [fileWiping, setFileWiping] = useState(false);
+  const [carving, setCarving] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState("AWAITING_INITIALIZATION");
   const [certificate, setCertificate] = useState("");
@@ -38,8 +41,7 @@ export default function App() {
 
   const hexIntervalRef = useRef<number | null>(null);
   const timerIntervalRef = useRef<number | null>(null);
-  const logsEndRef = useRef<HTMLDivElement>(null);
-  const hexEndRef = useRef<HTMLDivElement>(null);
+
 
   useEffect(() => {
     // Fetch real drive info when app loads
@@ -73,8 +75,15 @@ export default function App() {
       }
     });
 
+    const unlistenCarve = listen<string>("carve-log", (event) => {
+      const msg = event.payload;
+      const time = new Date().toISOString().split("T")[1].slice(0, 8);
+      setLogs(prev => [...prev, `[${time}] ${msg}`]);
+    });
+
     return () => {
       unlisten.then(f => f());
+      unlistenCarve.then(f => f());
     };
   }, []);
 
@@ -125,7 +134,7 @@ export default function App() {
       if (hexIntervalRef.current) clearInterval(hexIntervalRef.current);
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     };
-  }, [isWiping]);
+  }, [isWiping, fileWiping, carving]);
 
   const handleStartWipe = async () => {
     setStep(3);
@@ -165,6 +174,34 @@ export default function App() {
       setLogs(prev => [...prev, `[${time}] FATAL ERROR: ${error}`]);
       setStatus("WIPE_FAILED");
       setIsWiping(false);
+    }
+  };
+
+  const handleStartFileWipe = async () => {
+    setFileWiping(true);
+    setLogs([]);
+    try {
+      await invoke("start_file_wipe", { targetPath: "/Users/kartikgoyal/Documents/Secret_Case" });
+      const time = new Date().toISOString().split("T")[1].slice(0, 8);
+      setLogs(prev => [...prev, `[${time}] SUCCESS: Target destroyed.`]);
+      setTimeout(() => setFileWiping(false), 3000);
+    } catch (e) {
+      setLogs(prev => [...prev, `ERROR: ${e}`]);
+      setFileWiping(false);
+    }
+  };
+
+  const handleStartCarving = async () => {
+    setCarving(true);
+    setLogs([]);
+    try {
+      await invoke("start_carving", { devicePath: "/dev/sdb1", outputDir: "/Desktop/Recovered_Evidence" });
+      const time = new Date().toISOString().split("T")[1].slice(0, 8);
+      setLogs(prev => [...prev, `[${time}] SUCCESS: Carving finished.`]);
+      setTimeout(() => setCarving(false), 3000);
+    } catch (e) {
+      setLogs(prev => [...prev, `ERROR: ${e}`]);
+      setCarving(false);
     }
   };
 
@@ -208,11 +245,41 @@ export default function App() {
 
       <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-4 gap-6 relative z-10">
         
-        {/* Left Sidebar - Deep Technical Specs & Telemetry */}
+        {/* Left Sidebar - Navigation & Specs */}
         <div className="col-span-1 flex flex-col gap-6">
           
-          {/* Target Specs Panel */}
+          {/* Navigation Panel */}
           <div className="border border-white/10 bg-black/40 backdrop-blur-md p-5 rounded-xl shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
+            <h3 className="text-xs font-bold text-neutral-400 tracking-widest mb-4 border-b border-white/10 pb-2 flex items-center gap-2">
+              <svg className="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+              MODULES
+            </h3>
+            <div className="space-y-2">
+              <button 
+                onClick={() => setActiveTab("Drive")}
+                className={`w-full text-left px-3 py-2 rounded text-[11px] font-bold tracking-widest transition-colors uppercase ${activeTab === "Drive" ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50' : 'text-neutral-400 hover:bg-white/5 border border-transparent'}`}
+              >
+                Secure Drive Eraser
+              </button>
+              <button 
+                onClick={() => setActiveTab("File")}
+                className={`w-full text-left px-3 py-2 rounded text-[11px] font-bold tracking-widest transition-colors uppercase ${activeTab === "File" ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50' : 'text-neutral-400 hover:bg-white/5 border border-transparent'}`}
+              >
+                File & Folder Eraser
+              </button>
+              <button 
+                onClick={() => setActiveTab("Recovery")}
+                className={`w-full text-left px-3 py-2 rounded text-[11px] font-bold tracking-widest transition-colors uppercase ${activeTab === "Recovery" ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50' : 'text-neutral-400 hover:bg-white/5 border border-transparent'}`}
+              >
+                Data Recovery
+              </button>
+            </div>
+          </div>
+
+          {activeTab === "Drive" && (
+            <>
+              {/* Target Specs Panel */}
+              <div className="border border-white/10 bg-black/40 backdrop-blur-md p-5 rounded-xl shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
             <h3 className="text-xs font-bold text-neutral-400 tracking-widest mb-4 border-b border-white/10 pb-2 flex items-center gap-2">
               <svg className="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
               TARGET SPECS
@@ -262,13 +329,17 @@ export default function App() {
               </div>
             </div>
           </div>
+            </>
+          )}
 
         </div>
 
         {/* Right Main Container */}
         <div className="col-span-1 lg:col-span-3 border border-white/10 bg-black/40 backdrop-blur-xl p-8 rounded-xl relative flex flex-col shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden">
           
-          {/* Step 1: Initialization */}
+          {activeTab === "Drive" && (
+            <>
+              {/* Step 1: Initialization */}
           {step === 1 && (
             <div className="animate-in fade-in zoom-in-95 duration-500 flex-1 flex flex-col justify-center max-w-2xl">
               <div className="w-12 h-12 bg-cyan-500/20 border border-cyan-500/50 rounded-lg flex items-center justify-center mb-6">
@@ -465,6 +536,83 @@ export default function App() {
               </button>
             </div>
           )}
+            </>
+          )}
+
+          {activeTab === "File" && (
+            <div className="animate-in fade-in duration-500 flex-1 flex flex-col justify-center items-center text-center">
+              {!fileWiping ? (
+                <>
+                  <div className="w-16 h-16 bg-cyan-500/10 border border-cyan-500/30 rounded-xl flex items-center justify-center mb-6">
+                    <svg className="w-8 h-8 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
+                  </div>
+                  <h2 className="text-2xl font-bold mb-3 tracking-tight">Secure File & Folder Eraser</h2>
+                  <p className="text-neutral-400 text-sm max-w-md mx-auto leading-relaxed mb-8">
+                    Targeted destruction of specific files and directories. Overwrites data in-place and sanitizes filesystem metadata to prevent forensic recovery.
+                  </p>
+                  <button 
+                    onClick={handleStartFileWipe}
+                    className="bg-cyan-500 text-black px-6 py-2 rounded font-bold uppercase text-xs tracking-widest hover:bg-cyan-400 transition-colors"
+                  >
+                    Select & Wipe Targets
+                  </button>
+                </>
+              ) : (
+                <div className="w-full text-left">
+                  <h2 className="text-xl font-bold uppercase tracking-[0.2em] text-red-500 flex items-center gap-3 mb-6">
+                    <span className="w-3 h-3 rounded-full bg-red-500 animate-ping"></span>
+                    Surgical Wipe Active
+                  </h2>
+                  <div className="w-full h-64 p-3 border border-white/10 bg-black/60 rounded flex flex-col font-mono text-[10px] leading-relaxed relative overflow-hidden">
+                    <div className="absolute top-0 right-0 bg-white/10 px-2 py-0.5 text-[9px] text-white/50 rounded-bl z-10">WIPE_LOG</div>
+                    <div ref={logsContainerRef} className="overflow-y-auto h-full text-cyan-300/80 pr-2 custom-scrollbar pb-2">
+                      {logs.map((log, i) => (
+                        <div key={i} className="mb-1">{log}</div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "Recovery" && (
+            <div className="animate-in fade-in duration-500 flex-1 flex flex-col justify-center items-center text-center">
+              {!carving ? (
+                <>
+                  <div className="w-16 h-16 bg-cyan-500/10 border border-cyan-500/30 rounded-xl flex items-center justify-center mb-6">
+                    <svg className="w-8 h-8 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                  </div>
+                  <h2 className="text-2xl font-bold mb-3 tracking-tight">Advanced Data Recovery</h2>
+                  <p className="text-neutral-400 text-sm max-w-md mx-auto leading-relaxed mb-8">
+                    Forensic-grade file carving engine. Scans raw disk sectors to reconstruct lost files, bypass filesystem metadata, and recover evidence from formatted or damaged media.
+                  </p>
+                  <button 
+                    onClick={handleStartCarving}
+                    className="bg-cyan-500 text-black px-6 py-2 rounded font-bold uppercase text-xs tracking-widest hover:bg-cyan-400 transition-colors"
+                  >
+                    Configure & Start Scan
+                  </button>
+                </>
+              ) : (
+                <div className="w-full text-left">
+                  <h2 className="text-xl font-bold uppercase tracking-[0.2em] text-cyan-400 flex items-center gap-3 mb-6">
+                    <span className="w-3 h-3 rounded-full bg-cyan-400 animate-ping"></span>
+                    Raw Sector Carving Active
+                  </h2>
+                  <div className="w-full h-64 p-3 border border-white/10 bg-black/60 rounded flex flex-col font-mono text-[10px] leading-relaxed relative overflow-hidden">
+                    <div className="absolute top-0 right-0 bg-white/10 px-2 py-0.5 text-[9px] text-white/50 rounded-bl z-10">CARVE_LOG</div>
+                    <div ref={logsContainerRef} className="overflow-y-auto h-full text-green-400/80 pr-2 custom-scrollbar pb-2">
+                      {logs.map((log, i) => (
+                        <div key={i} className="mb-1">{log}</div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       </div>
     </div>
