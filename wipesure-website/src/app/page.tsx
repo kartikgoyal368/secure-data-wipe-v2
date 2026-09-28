@@ -1,5 +1,6 @@
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
+import WhyWeBuiltItSection from "@/components/WhyWeBuiltItSection";
 import WhyWipeSureBanner from "@/components/WhyWipeSureBanner";
 import ProblemSolutionSection from "@/components/ProblemSolutionSection";
 import HowItWorksSection from "@/components/HowItWorksSection";
@@ -19,6 +20,9 @@ export default function Home() {
 
       {/* 2. Hero Section with Contained Clean Banner */}
       <Hero />
+
+      {/* 2.5 "Why We Built It" Section with Globe in easy language */}
+      <WhyWeBuiltItSection />
 
       {/* 3. High-Contrast White Sub-Hero Banner ("Why WipeSure") */}
       <WhyWipeSureBanner />

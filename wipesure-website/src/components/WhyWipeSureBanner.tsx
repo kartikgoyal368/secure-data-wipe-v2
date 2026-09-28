@@ -37,7 +37,7 @@ export default function WhyWipeSureBanner() {
             Deterministic Sanitization Architecture
           </h2>
           <p className="text-neutral-400 text-sm sm:text-base leading-relaxed max-w-[65ch]">
-            Every year, decommissioned storage drives expose confidential records through incomplete sanitization. WipeSure provides an audited, low-level Linux runtime to guarantee non-recoverability.
+            Every year, decommissioned storage drives and logical file deletions expose confidential records. WipeSure provides both an audited Linux ISO and a native desktop OS application to guarantee non-recoverability in any scenario.
           </p>
         </div>
 

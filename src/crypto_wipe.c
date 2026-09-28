@@ -6,7 +6,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#ifdef __linux__
 #include <linux/fs.h>
+#endif
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 

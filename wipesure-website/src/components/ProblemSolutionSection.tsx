@@ -77,7 +77,7 @@ export default function ProblemSolutionSection() {
                 Hardware Controller Voltage Discharge &amp; Overwrite
               </h3>
               <p className="text-xs text-neutral-300 leading-relaxed max-w-[65ch]">
-                WipeSure bypasses host operating system abstractions by booting from an air-gapped kernel. It instructs drive firmware to trigger physical silicon discharge across all addressable memory cells.
+                WipeSure bypasses host operating system abstractions—whether via its air-gapped bootable ISO for full drives, or its low-level desktop application for targeted file deletion. It forces direct physical block overwrites, discharging all addressable memory cells rather than unlinking pointers.
               </p>
             </div>
 

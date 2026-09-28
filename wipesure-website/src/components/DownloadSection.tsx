@@ -23,122 +23,142 @@ export default function DownloadSection() {
             <span>DISTRIBUTION ARTIFACT</span>
           </div>
           <h2 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight text-neutral-50">
-            Download Bootable ISO
+            Download WipeSure Products
           </h2>
           <p className="text-neutral-400 text-sm sm:text-base leading-relaxed max-w-[65ch]">
-            A minimal live Linux kernel with non-free proprietary storage controller firmware pre-integrated for universal boot on Dell, HP, Lenovo, ASUS, and Acer systems.
+            Deploy our Air-Gapped Linux ISO for absolute hardware-level drive sanitization, or install the Desktop Client for surgical file deletion and metadata obfuscation.
           </p>
         </div>
 
-        {/* Download Panel: Flat 1px border, rounded-md, no box shadows */}
-        <div className="panel-border p-8 rounded-md bg-neutral-900/50">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-neutral-800">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <HardDrive size={20} className="text-white" />
-                <h3 className="font-display text-xl font-semibold text-neutral-100">
-                  WipeSure-Universal-Boot.iso
-                </h3>
-                <span className="font-mono text-[10px] text-neutral-400 border border-neutral-800 px-2 py-0.5 rounded-md bg-neutral-950">
-                  v1.0.4-RELEASE
-                </span>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
+          {/* Panel 1: Bootable ISO */}
+          <div className="panel-border p-8 rounded-md bg-neutral-900/50 flex flex-col">
+            <div className="flex flex-col gap-6 pb-6 border-b border-neutral-800">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <HardDrive size={20} className="text-purple-400" />
+                  <h3 className="font-display text-xl font-semibold text-neutral-100">
+                    WipeSure Bootable ISO
+                  </h3>
+                  <span className="font-mono text-[10px] text-neutral-400 border border-neutral-800 px-2 py-0.5 rounded-md bg-neutral-950">
+                    v2.1.0-LIVE
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-400 font-mono">
+                  Full Drive Sanitization • Bypass OEM BIOS • O_DIRECT
+                </p>
               </div>
-              <p className="text-xs text-neutral-400 font-mono">
-                Debian 12 Live Core • Linux Kernel 6.8 LTS • Zero-Dependency Daemon
-              </p>
-            </div>
 
-            {/* Actions: Flat, Single Accent, No shadows */}
-            <div className="flex flex-wrap items-center gap-3">
-              <a
-                href="https://github.com/kartikgoyal368/Secure-Data-Wipe/releases/latest/download/WipeSure-Universal-Boot.iso"
-                download
-                className="btn-primary gap-2"
-              >
-                <DownloadSimple size={16} weight="bold" />
-                <span>Download ISO (1.2 GB)</span>
-              </a>
-
-              <a
-                href="#architecture"
-                className="btn-secondary gap-2"
-              >
-                <TerminalWindow size={16} />
-                <span>Flash Instructions</span>
-              </a>
-            </div>
-          </div>
-
-          {/* Technical Specs Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-6 border-b border-neutral-800 font-mono text-xs">
-            <div>
-              <div className="text-[10px] uppercase text-neutral-500 mb-1">IMAGE SIZE</div>
-              <div className="text-neutral-200 font-medium">1.24 GB</div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase text-neutral-500 mb-1">TARGET ARCH</div>
-              <div className="text-neutral-200 font-medium">x86_64 / AMD64</div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase text-neutral-500 mb-1">BOOT MODE</div>
-              <div className="text-neutral-200 font-medium">UEFI &amp; Legacy BIOS</div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase text-neutral-500 mb-1">LICENSE</div>
-              <div className="text-neutral-200 font-medium">Apache 2.0 (Open Source)</div>
-            </div>
-          </div>
-
-          {/* Checksum Box */}
-          <div className="pt-6 space-y-2">
-            <div className="flex items-center justify-between text-[11px] font-mono">
-              <span className="text-neutral-500 uppercase tracking-wider">SHA-256 HASH VERIFICATION</span>
-              <button
-                onClick={copyChecksum}
-                className="text-neutral-400 hover:text-white flex items-center gap-1.5 cursor-pointer"
-              >
-                {checksumCopied ? (
-                  <>
-                    <Check size={13} weight="bold" className="text-white" />
-                    <span className="text-white">Checksum Copied</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy size={13} />
-                    <span>Copy SHA-256</span>
-                  </>
-                )}
-              </button>
-            </div>
-            <div className="p-3 rounded-md bg-neutral-950 border border-neutral-800 font-mono text-xs text-neutral-300 select-all overflow-x-auto">
-              {sha256Checksum}
-            </div>
-          </div>
-
-          {/* Hardware Certified Matrix */}
-          <div className="mt-6 pt-6 border-t border-neutral-800">
-            <div className="text-[10px] font-mono text-neutral-500 uppercase mb-2.5">
-              Verified OEM Hardware Compatibility
-            </div>
-            <div className="flex flex-wrap gap-2 text-xs font-mono text-neutral-400">
-              {[
-                "Dell PowerEdge & Latitude",
-                "HP ProLiant & EliteBook",
-                "Lenovo ThinkSystem & ThinkPad",
-                "ASUS ExpertBook",
-                "Acer TravelMate",
-                "Supermicro Enterprise",
-              ].map((brand, i) => (
-                <span
-                  key={i}
-                  className="px-2.5 py-1 rounded-md bg-neutral-950 border border-neutral-800 text-neutral-300"
+              <div className="flex flex-wrap items-center gap-3">
+                <a
+                  href="/download/WipeSure-Universal-Boot.iso"
+                  download
+                  className="btn-primary gap-2 w-full sm:w-auto"
                 >
-                  {brand}
-                </span>
-              ))}
+                  <DownloadSimple size={16} weight="bold" />
+                  <span>Download ISO (1.2 GB)</span>
+                </a>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 py-6 border-b border-neutral-800 font-mono text-xs flex-1">
+              <div>
+                <div className="text-[10px] uppercase text-neutral-500 mb-1">TARGET ARCH</div>
+                <div className="text-neutral-200 font-medium">x86_64 / AMD64</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase text-neutral-500 mb-1">BOOT MODE</div>
+                <div className="text-neutral-200 font-medium">UEFI & Legacy</div>
+              </div>
+            </div>
+
+            <div className="pt-6 space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-mono">
+                <span className="text-neutral-500 uppercase tracking-wider">SHA-256 HASH VERIFICATION</span>
+                <button
+                  onClick={copyChecksum}
+                  className="text-neutral-400 hover:text-white flex items-center gap-1.5 cursor-pointer"
+                >
+                  {checksumCopied ? (
+                    <>
+                      <Check size={13} weight="bold" className="text-white" />
+                      <span className="text-white">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={13} />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <div className="p-3 rounded-md bg-neutral-950 border border-neutral-800 font-mono text-xs text-neutral-300 select-all overflow-x-auto truncate">
+                {sha256Checksum}
+              </div>
             </div>
           </div>
 
+          {/* Panel 2: Desktop App */}
+          <div className="panel-border p-8 rounded-md bg-neutral-900/50 flex flex-col">
+            <div className="flex flex-col gap-6 pb-6 border-b border-neutral-800">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <TerminalWindow size={20} className="text-purple-400" />
+                  <h3 className="font-display text-xl font-semibold text-neutral-100">
+                    WipeSure Desktop App
+                  </h3>
+                  <span className="font-mono text-[10px] text-neutral-400 border border-neutral-800 px-2 py-0.5 rounded-md bg-neutral-950">
+                    v2.1.0-GUI
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-400 font-mono">
+                  Surgical File Wipe • Forensic Data Recovery • Audit Logging
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <a
+                  href="/download/WipeSure-Setup.exe"
+                  download
+                  className="btn-primary gap-2 w-full sm:w-auto bg-neutral-100 hover:bg-white text-black"
+                >
+                  <DownloadSimple size={16} weight="bold" />
+                  <span>Windows (.exe)</span>
+                </a>
+                <a
+                  href="/download/WipeSure-Mac.dmg"
+                  download
+                  className="btn-secondary gap-2 w-full sm:w-auto"
+                >
+                  <DownloadSimple size={16} weight="bold" />
+                  <span>macOS (.dmg)</span>
+                </a>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 py-6 border-b border-neutral-800 font-mono text-xs flex-1">
+              <div>
+                <div className="text-[10px] uppercase text-neutral-500 mb-1">PLATFORMS</div>
+                <div className="text-neutral-200 font-medium">Windows 10/11, macOS 13+</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase text-neutral-500 mb-1">FRAMEWORK</div>
+                <div className="text-neutral-200 font-medium">Tauri + Rust Backend</div>
+              </div>
+            </div>
+
+            <div className="pt-6 space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-mono">
+                <span className="text-neutral-500 uppercase tracking-wider">ENTERPRISE COMPATIBILITY</span>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs font-mono text-neutral-400 mt-2">
+                <span className="px-2.5 py-1 rounded-md bg-neutral-950 border border-neutral-800 text-neutral-300">Active Directory</span>
+                <span className="px-2.5 py-1 rounded-md bg-neutral-950 border border-neutral-800 text-neutral-300">MDM Deployable</span>
+                <span className="px-2.5 py-1 rounded-md bg-neutral-950 border border-neutral-800 text-neutral-300">SOC2 Logs</span>
+              </div>
+            </div>
+          </div>
         </div>
 
       </div>

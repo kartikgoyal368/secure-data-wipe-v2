@@ -1,20 +1,44 @@
 "use client";
 
 import { TerminalWindow, ArrowRight, DownloadSimple, Check } from "@phosphor-icons/react";
-import NebulaFlow from "@/components/lightswind/nebula-flow";
+import AeroShards from "@/components/lightswind/AeroShards";
+import { TextParticleAnimation } from "@/components/lightswind/text-particle-animation";
 
 export default function Hero() {
   return (
     <section className="relative overflow-hidden bg-neutral-950 pt-24 pb-32">
-      {/* Interactive Nebula Flow Canvas (Restricted strictly to Hero Background) */}
-      <div className="hidden lg:block">
-        <NebulaFlow
-          colors={["#450a0a", "#7f1d1d", "#b91c1c"]}
-          speed={0.75}
-          scale={1.15}
-          density={0.85}
-          interactive={true}
-          className="opacity-45"
+      {/* Interactive Aero Shards Canvas (Restricted strictly to Hero Background) */}
+      <div className="absolute inset-0 z-0">
+        <AeroShards
+          backgroundColor="#0a0a0a" /* Tailwind neutral-950 */
+          shardColor="#ffffff" /* Monochrome theme requested earlier */
+          accentColor="#555555"
+          placement="full"
+          flow="stream"
+          material="pearl"
+          detail="balanced"
+          effect="none"
+          scale={1}
+          spread={1}
+          depth={1}
+          speed={1}
+          spin={1}
+          interaction="repel"
+          density={1.5}
+          shardSize={1.1}
+          stretch={1}
+          turbulence={1}
+          glow={1}
+          edgeSoftness={2}
+          bloom={0.5}
+          grain={0.05}
+          chromaticAberration={0.0075}
+          transitionDuration={1}
+          interactionRadius={1.5}
+          interactionStrength={0.5}
+          rippleIntensity={1}
+          holdToGather
+          paused={false}
         />
       </div>
       <div className="lg:hidden absolute inset-0 bg-neutral-900/50" />
@@ -37,13 +61,28 @@ export default function Hero() {
             </div>
 
             {/* Display Headline: Real Type Scale, Left-Aligned, Space Grotesk */}
-            <h1 className="font-display text-4xl sm:text-5xl lg:text-[54px] font-semibold tracking-tight text-neutral-50 leading-[1.1]">
-              Cryptographic Data Erasure Operating System
-            </h1>
+            <div className="w-full h-[120px] sm:h-[150px] flex items-start justify-start overflow-visible -ml-4">
+              <TextParticleAnimation
+                text="WIPESURE"
+                fontSize={120}
+                fontFamily="Space Grotesk, sans-serif"
+                fontWeight={900}
+                resolution={4}
+                pixelSize={3}
+                hoverRadius={70}
+                repelForce={10}
+                clickRadius={250}
+                clickForce={60}
+                springForce={0.08}
+                friction={0.85}
+                theme="dark"
+                padding={80}
+              />
+            </div>
 
             {/* Disciplined Body Copy (under 68 characters per line) */}
             <p className="text-neutral-300 text-base leading-relaxed max-w-[65ch]">
-              WipeSure is an air-gapped, bootable Linux environment engineered in low-level C. It bypasses OEM motherboard BIOS freeze-locks using ACPI S3 sleep-cycle state transitions, triggers high-voltage solid-state controller purges, and verifies physical zero-residual state via kernel direct I/O.
+              WipeSure provides a bootable, air-gapped OS engineered in low-level C for full-drive cryptographic purges, alongside a secure desktop application for surgical file deletion and advanced data recovery. Guaranteed zero-residual state and complete forensic auditing.
             </p>
 
             {/* Action Group: Functional, Flat, Pure White Primary Accent */}

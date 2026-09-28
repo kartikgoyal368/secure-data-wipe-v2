@@ -11,7 +11,9 @@
 // Linux-specific headers for device size detection
 #ifdef __linux__
 #include <sys/ioctl.h>
+#ifdef __linux__
 #include <linux/fs.h>
+#endif
 #include <sys/sysmacros.h>
 #endif
 

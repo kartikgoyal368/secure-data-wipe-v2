@@ -1,0 +1,44 @@
+.aero-shards {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  z-index: 0;
+  transition: opacity 0.3s ease;
+  opacity: 1; /* Fallback needs opacity 1 */
+}
+
+.aero-shards[data-ready="true"] {
+  opacity: 1;
+}
+
+.aero-shards__canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: none;
+}
+
+.aero-shards__fallback {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 50% 50%, rgba(137, 106, 189, 0.15), rgba(9, 9, 11, 1)),
+              linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, transparent 50%, rgba(137, 106, 189, 0.05) 100%);
+  background-size: 200% 200%;
+  animation: aeroFallbackFloat 15s ease infinite;
+}
+
+@keyframes aeroFallbackFloat {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.aero-shards__canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: none;
+}

@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import "./App.css";
+import InteractiveGridBackground from "./components/InteractiveGridBackground";
+import DocumentationPage from "./components/DocumentationPage";
 
 function App() {
   const [step, setStep] = useState(1);
@@ -135,14 +137,24 @@ function App() {
     } catch (error) {
       console.error(error);
       setIsWiping(false);
+      setStatus("ERROR");
     }
   };
 
   const handleStartFileWipe = async () => {
-    setFileWiping(true);
-    setLogs([]);
     try {
-      await invoke("start_file_wipe", { targetPath: "/Users/kartikgoyal/Documents/Secret_Case" });
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const selectedPath = await open({
+        multiple: false,
+        directory: true, // Allow picking folders for surgical wipe
+        title: "Select File or Folder to Surgically Wipe"
+      });
+
+      if (!selectedPath) return; // User cancelled
+
+      setFileWiping(true);
+      setLogs([]);
+      await invoke("start_file_wipe", { targetPath: selectedPath });
       const time = new Date().toISOString().split("T")[1].slice(0, 8);
       setLogs(prev => [...prev, `[${time}] SUCCESS: Target destroyed.`]);
       setTimeout(() => setFileWiping(false), 3000);
@@ -153,10 +165,19 @@ function App() {
   };
 
   const handleStartCarving = async () => {
-    setCarving(true);
-    setLogs([]);
     try {
-      await invoke("start_carving", { devicePath: "/dev/sdb1", outputDir: "/Desktop/Recovered_Evidence" });
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const selectedOutputDir = await open({
+        multiple: false,
+        directory: true,
+        title: "Select Directory to Save Recovered Evidence"
+      });
+
+      if (!selectedOutputDir) return;
+
+      setCarving(true);
+      setLogs([]);
+      await invoke("start_carving", { devicePath: "/dev/sdb1", outputDir: selectedOutputDir });
       const time = new Date().toISOString().split("T")[1].slice(0, 8);
       setLogs(prev => [...prev, `[${time}] SUCCESS: Carving finished.`]);
       setTimeout(() => setCarving(false), 3000);
@@ -175,11 +196,27 @@ function App() {
   const totalBlocks = 244190646;
   const wipedBlocks = Math.floor((progress / 100) * totalBlocks);
 
+  if (activeTab === "Docs") {
+    return <DocumentationPage onBack={() => setActiveTab("Drive")} />;
+  }
+
   return (
-    <div className="w-full min-h-screen bg-[#09090b] text-[#f4f4f5] p-8 flex flex-col items-center selection:bg-zinc-800 selection:text-white">
-      
+    <div className="relative w-full min-h-screen text-[#f4f4f5] p-8 flex flex-col items-center selection:bg-zinc-800 selection:text-white overflow-hidden z-0 bg-transparent">
+      <div className="fixed inset-0 z-[-1]">
+        <InteractiveGridBackground 
+          gridSize={40}
+          darkGridColor="#3f3f46"
+          darkEffectColor="rgba(168, 85, 247, 0.4)"
+          trailLength={5}
+          idleSpeed={0.3}
+          glow={true}
+          glowRadius={5}
+          fadeIntensity={60}
+        />
+      </div>
+
       {/* Top Navigation / Header */}
-      <div className="w-full max-w-6xl mb-8 flex items-center justify-between border-b border-zinc-800 pb-4">
+      <div className="w-full max-w-6xl mb-8 flex items-center justify-between border-b border-zinc-800 pb-4 relative z-10">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 bg-white rounded-sm flex items-center justify-center">
             <svg className="w-4 h-4 text-black" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2z"/></svg>
@@ -338,14 +375,14 @@ function App() {
                   </div>
 
                   <div className="w-full h-64 grid grid-cols-2 gap-4 mt-auto">
-                    <div className="col-span-1 log-terminal flex flex-col overflow-hidden">
+                    <div className="col-span-1 log-terminal flex flex-col overflow-hidden relative">
                       <div className="bg-zinc-900 border-b border-zinc-800 px-3 py-1.5 text-[10px] text-zinc-400 font-mono uppercase tracking-wider flex justify-between">
                         <span>System Logs</span>
-                        <span className="text-zinc-500">{status}</span>
+                        <span className={status === "ERROR" ? "text-red-500" : "text-zinc-500"}>{status}</span>
                       </div>
                       <div ref={logsContainerRef} className="overflow-y-auto h-full text-zinc-300 p-3 pb-4 font-mono text-[11px] leading-relaxed">
                         {logs.map((log, i) => (
-                          <div key={i} className="mb-1">{log}</div>
+                          <div key={i} className={`mb-1 ${log.includes("CRITICAL") || log.includes("ERROR") ? "text-red-400 font-bold" : ""}`}>{log}</div>
                         ))}
                       </div>
                     </div>
@@ -361,6 +398,27 @@ function App() {
                       </div>
                     </div>
                   </div>
+
+                  {!isWiping && status !== "WIPE_COMPLETE" && (
+                    <div className="mt-8 pt-4 border-t border-zinc-800 flex justify-between items-center animate-fade-in">
+                      <span className="text-red-500 text-sm font-semibold flex items-center gap-2">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        Wipe Process Aborted
+                      </span>
+                      <button 
+                        onClick={() => {
+                          setStep(1);
+                          setLogs([]);
+                          setHexLogs([]);
+                          setStatus("");
+                          setProgress(0);
+                        }}
+                        className="enterprise-btn-secondary px-6 py-2 rounded-md text-sm font-semibold hover:border-white hover:text-white"
+                      >
+                        Return to Setup
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -492,88 +550,6 @@ function App() {
               )}
             </div>
           )}
-
-          {activeTab === "Docs" && (
-            <div className="fade-in flex-1 flex flex-col overflow-y-auto pr-2 custom-scrollbar">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-                </div>
-                <h2 className="text-2xl font-semibold">Transparency & Methodology</h2>
-              </div>
-              <p className="text-zinc-400 text-sm mb-8 leading-relaxed max-w-3xl">
-                WipeSure is designed for absolute transparency. Below are the technical methodologies and cryptographic standards implemented in our core C-Engine to guarantee legal compliance and forensic integrity.
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* DoD Algorithm Card */}
-                <div className="col-span-1 md:col-span-2 border border-zinc-800 bg-gradient-to-br from-zinc-900/80 to-zinc-900/30 rounded-xl p-6 hover:border-cyan-500/30 transition-all group">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shrink-0 group-hover:bg-cyan-500/20 transition-all">
-                      <svg className="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                    </div>
-                    <div>
-                      <h3 className="text-base font-semibold text-white mb-2">DoD 5220.22-M Sanitization Standard</h3>
-                      <p className="text-sm text-zinc-400 mb-4 leading-relaxed">
-                        The U.S. Department of Defense standard dictates a highly secure, 3-pass overwrite mechanism designed to prevent both software and hardware-based (magnetic force microscopy) data recovery.
-                      </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="bg-black/50 border border-zinc-800 rounded p-3">
-                          <div className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold mb-1">Pass 1</div>
-                          <div className="font-mono text-xs text-zinc-300">Binary Zeroes <span className="text-cyan-500">(0x00)</span></div>
-                        </div>
-                        <div className="bg-black/50 border border-zinc-800 rounded p-3">
-                          <div className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold mb-1">Pass 2</div>
-                          <div className="font-mono text-xs text-zinc-300">Binary Ones <span className="text-cyan-500">(0xFF)</span></div>
-                        </div>
-                        <div className="bg-black/50 border border-zinc-800 rounded p-3">
-                          <div className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold mb-1">Pass 3</div>
-                          <div className="font-mono text-xs text-zinc-300">Cryptographic <span className="text-cyan-500">(RND)</span></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Metadata Obfuscation Card */}
-                <div className="col-span-1 border border-zinc-800 bg-gradient-to-br from-zinc-900/80 to-zinc-900/30 rounded-xl p-6 hover:border-purple-500/30 transition-all group">
-                  <div className="w-12 h-12 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-4 group-hover:bg-purple-500/20 transition-all">
-                    <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-                  </div>
-                  <h3 className="text-base font-semibold text-white mb-2">MFT Metadata Obfuscation</h3>
-                  <p className="text-sm text-zinc-400 leading-relaxed mb-4">
-                    Advanced forensic tools can analyze the OS journal to find historical filenames. WipeSure cryptographically renames files before deletion to destroy this footprint.
-                  </p>
-                  <div className="flex items-center gap-2 text-xs font-mono">
-                    <span className="bg-red-500/10 text-red-400 px-2 py-1 rounded border border-red-500/20">secret.pdf</span>
-                    <svg className="w-4 h-4 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                    <span className="bg-purple-500/10 text-purple-400 px-2 py-1 rounded border border-purple-500/20">f7b2c9a1.tmp</span>
-                  </div>
-                </div>
-
-                {/* File Carving Card */}
-                <div className="col-span-1 border border-zinc-800 bg-gradient-to-br from-zinc-900/80 to-zinc-900/30 rounded-xl p-6 hover:border-green-500/30 transition-all group">
-                  <div className="w-12 h-12 rounded-lg bg-green-500/10 border border-green-500/20 flex items-center justify-center mb-4 group-hover:bg-green-500/20 transition-all">
-                    <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z M10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
-                  </div>
-                  <h3 className="text-base font-semibold text-white mb-2">Raw Sector File Carving</h3>
-                  <p className="text-sm text-zinc-400 leading-relaxed mb-4">
-                    Our recovery engine bypasses corrupted filesystems entirely, scanning physical disk platters for specific Magic Byte signatures to reconstruct lost files.
-                  </p>
-                  <div className="bg-black/50 border border-zinc-800 rounded p-3 font-mono text-[11px] text-zinc-500">
-                    <div className="flex justify-between items-center mb-1">
-                      <span>Scanning sector 2048...</span>
-                      <span className="text-green-400 animate-pulse">MATCH</span>
-                    </div>
-                    <div className="text-zinc-300">Header: <span className="text-cyan-400">%PDF-</span> (0x25 0x50 0x44 0x46)</div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          )}
-
         </div>
       </div>
     </div>

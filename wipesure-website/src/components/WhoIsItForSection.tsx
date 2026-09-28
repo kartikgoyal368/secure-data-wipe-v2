@@ -43,7 +43,7 @@ export default function WhoIsItForSection() {
             Engineered for High-Assurance Erasure
           </h2>
           <p className="text-neutral-400 text-sm sm:text-base leading-relaxed max-w-[65ch]">
-            From single-drive handoffs to enterprise data center decommissioning, WipeSure delivers forensically validated sanitization without proprietary lock-in.
+            From purging a single sensitive file to enterprise data center decommissioning, WipeSure delivers forensically validated sanitization without proprietary lock-in.
           </p>
         </div>
 
