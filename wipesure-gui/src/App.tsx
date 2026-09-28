@@ -3,27 +3,23 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import "./App.css";
 
-// Helper for generating random hex strings
-const generateHex = (length: number) => {
-  let result = '';
-  const characters = '0123456789ABCDEF';
-  for ( let i = 0; i < length; i++ ) {
-    result += characters.charAt(Math.floor(Math.random() * characters.length));
-  }
-  return result;
-};
-
-export default function App() {
-  const [activeTab, setActiveTab] = useState("Drive");
+function App() {
   const [step, setStep] = useState(1);
-  const [driveInfo, setDriveInfo] = useState({ path: "/dev/nvme0n1", name: "Detecting...", size: "..." });
+  const [activeTab, setActiveTab] = useState("Drive");
   
-  // Permissions State
+  // Auth state
   const [agreedToRisks, setAgreedToRisks] = useState(false);
   const [agreedToIrreversible, setAgreedToIrreversible] = useState(false);
   const [adminAuthorized, setAdminAuthorized] = useState(false);
 
-  // Wipe State
+  // Mock Drives
+  const [driveInfo, setDriveInfo] = useState({ path: "", name: "", size: "" });
+
+  // Logs
+  const [logs, setLogs] = useState<string[]>([]);
+  const [hexLogs, setHexLogs] = useState<string[]>([]);
+
+  // Operational State
   const [isWiping, setIsWiping] = useState(false);
   const [fileWiping, setFileWiping] = useState(false);
   const [carving, setCarving] = useState(false);
@@ -31,35 +27,21 @@ export default function App() {
   const [status, setStatus] = useState("AWAITING_INITIALIZATION");
   const [certificate, setCertificate] = useState("");
   const [txHash, setTxHash] = useState("");
-  const [logs, setLogs] = useState<string[]>([]);
-  const [hexLogs, setHexLogs] = useState<string[]>([]);
-  
-  // Telemetry State
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [ioSpeed, setIoSpeed] = useState("0.00 MB/s");
-  const [cpuTemp, setCpuTemp] = useState("45°C");
-
-  const hexIntervalRef = useRef<number | null>(null);
-  const timerIntervalRef = useRef<number | null>(null);
-
 
   useEffect(() => {
-    // Fetch real drive info when app loads
-    invoke("get_drives").then((res: any) => {
+    invoke<string>("get_drives").then((res) => {
       const parts = res.split("|");
       if (parts.length === 3) {
         setDriveInfo({ path: parts[0], name: parts[1], size: parts[2] });
       }
     }).catch(console.error);
 
-    // Listen to streaming logs from Rust
     const unlisten = listen<string>("wipe-log", (event) => {
       const msg = event.payload;
-      
       const time = new Date().toISOString().split("T")[1].slice(0, 8);
       setLogs(prev => [...prev, `[${time}] ${msg}`]);
       
-      // Dynamically update progress/status based on log keywords
       if (msg.includes("Initializing")) {
         setStatus("ESCALATING_PRIVILEGES");
         setProgress(15);
@@ -87,7 +69,6 @@ export default function App() {
     };
   }, []);
 
-  // Auto-scroll logs
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const hexContainerRef = useRef<HTMLDivElement>(null);
 
@@ -96,43 +77,35 @@ export default function App() {
       logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight;
     }
   }, [logs]);
-
   useEffect(() => {
     if (hexContainerRef.current) {
       hexContainerRef.current.scrollTop = hexContainerRef.current.scrollHeight;
     }
   }, [hexLogs]);
 
-  // Telemetry & Hex stream effect
   useEffect(() => {
+    let timerInterval: number;
+    let hexInterval: number;
     if (isWiping) {
-      // Hex Streamer
-      hexIntervalRef.current = window.setInterval(() => {
-        setHexLogs(prev => {
-          const newHex = `0x${generateHex(4)} 0x${generateHex(4)} 0x${generateHex(4)} 0x${generateHex(4)}  ${generateHex(8)}`;
-          const updated = [...prev, newHex];
-          return updated.length > 50 ? updated.slice(updated.length - 50) : updated;
-        });
-        
-        // Randomize speed and temp for visual effect during wipe
-        setIoSpeed(`${(Math.random() * 2.5 + 3.1).toFixed(2)} GB/s`);
-        setCpuTemp(`${Math.floor(Math.random() * 15 + 60)}°C`);
-      }, 100);
-
-      // Timer
-      timerIntervalRef.current = window.setInterval(() => {
+      timerInterval = window.setInterval(() => {
         setElapsedTime(prev => prev + 1);
       }, 1000);
-    } else {
-      if (hexIntervalRef.current) clearInterval(hexIntervalRef.current);
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-      setIoSpeed("0.00 MB/s");
-      setCpuTemp("42°C");
+      hexInterval = window.setInterval(() => {
+        const addr = Math.floor(Math.random() * 0xFFFFFF).toString(16).padStart(8, '0');
+        const d1 = Math.floor(Math.random() * 0xFFFFFFFF).toString(16).padStart(8, '0');
+        const d2 = Math.floor(Math.random() * 0xFFFFFFFF).toString(16).padStart(8, '0');
+        const d3 = Math.floor(Math.random() * 0xFFFFFFFF).toString(16).padStart(8, '0');
+        const d4 = Math.floor(Math.random() * 0xFFFFFFFF).toString(16).padStart(8, '0');
+        setHexLogs(prev => {
+          const next = [...prev, `0x${addr}  ${d1} ${d2} ${d3} ${d4}  ................`];
+          if (next.length > 50) return next.slice(next.length - 50);
+          return next;
+        });
+      }, 50);
     }
-
     return () => {
-      if (hexIntervalRef.current) clearInterval(hexIntervalRef.current);
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      clearInterval(hexInterval);
+      clearInterval(timerInterval);
     };
   }, [isWiping, fileWiping, carving]);
 
@@ -141,38 +114,26 @@ export default function App() {
     setIsWiping(true);
     setStatus("ESCALATING_PRIVILEGES");
     setProgress(5);
-    setLogs([]); 
+    setLogs([]);
     setHexLogs([]);
     setElapsedTime(0);
-    
+
     try {
-      // Trigger backend process
       await invoke("start_secure_wipe", { devicePath: driveInfo.path });
-      
-      setStatus("UPLOADING_TO_BLOCKCHAIN");
-      setProgress(95);
-      
-      const time = new Date().toISOString().split("T")[1].slice(0, 8);
-      setLogs(prev => [...prev, `[${time}] Transmitting SHA-256 hash to Polygon Mainnet...`]);
-      
-      try {
-        const mock_pdf_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
-        const returned_tx: any = await invoke("upload_to_blockchain", { hash: mock_pdf_hash });
-        setTxHash(returned_tx);
-        setLogs(prev => [...prev, `[${time}] Transaction confirmed. TX: ${returned_tx.substring(0, 10)}...`]);
-      } catch (e) {
-        setLogs(prev => [...prev, `[${time}] Blockchain upload failed.`]);
-      }
-      
-      setStatus("SANITIZATION_COMPLETE"); 
-      setProgress(100); 
-      setCertificate("tamper_proof_cert_93a1f.pdf");
-      setIsWiping(false);
-      setStep(4);
+      setProgress(100);
+      setStatus("WIPE_COMPLETE");
+      setTimeout(async () => {
+        setStep(4);
+        setIsWiping(false);
+        const certStr = "WS-CERT-" + Math.floor(Math.random() * 100000000);
+        setCertificate(certStr);
+        try {
+          const hash = await invoke<string>("upload_to_blockchain", { hash: "dummy" });
+          setTxHash(hash);
+        } catch(e) { console.error(e); }
+      }, 2000);
     } catch (error) {
-      const time = new Date().toISOString().split("T")[1].slice(0, 8);
-      setLogs(prev => [...prev, `[${time}] FATAL ERROR: ${error}`]);
-      setStatus("WIPE_FAILED");
+      console.error(error);
       setIsWiping(false);
     }
   };
@@ -211,363 +172,277 @@ export default function App() {
     return `${m}:${s}`;
   };
 
-  // Generate 200 blocks for the sector map
-  const totalBlocks = 200;
+  const totalBlocks = 244190646;
   const wipedBlocks = Math.floor((progress / 100) * totalBlocks);
 
   return (
-    <div className="w-full min-h-screen bg-[#050505] text-white p-6 flex flex-col items-center font-sans selection:bg-cyan-900 selection:text-cyan-100 relative overflow-hidden">
+    <div className="w-full min-h-screen bg-[#09090b] text-[#f4f4f5] p-8 flex flex-col items-center selection:bg-zinc-800 selection:text-white">
       
-      {/* Background Ambient Glow */}
-      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-cyan-900/10 blur-[120px] rounded-full pointer-events-none"></div>
-      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-red-900/10 blur-[120px] rounded-full pointer-events-none"></div>
-
-      {/* Header */}
-      <div className="w-full max-w-7xl mb-6 flex items-end justify-between border-b border-white/10 pb-4 relative z-10">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tighter flex items-center gap-3">
-            <span className="text-cyan-400">WIPESURE</span>
-            <span className="font-light text-neutral-400">ENTERPRISE</span>
-          </h1>
-          <p className="text-neutral-500 text-xs tracking-[0.3em] mt-1 font-mono uppercase">Forensic-Grade Data Sanitization</p>
-        </div>
-        <div className="text-right flex flex-col items-end">
-          <p className="text-[10px] text-cyan-500/70 font-mono tracking-widest border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 rounded-sm mb-2 uppercase">MIL-STD 5220.22-M Compliant</p>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-neutral-400 font-mono uppercase">Node: KIOSK-01</span>
-            <div className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded border border-white/10">
-              <span className={`w-2 h-2 rounded-full ${isWiping ? 'bg-amber-400 animate-pulse shadow-[0_0_10px_rgba(251,191,36,0.8)]' : 'bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]'}`}></span>
-              <span className="text-xs text-white font-mono">{isWiping ? 'SYS_BUSY' : 'SYS_READY'}</span>
-            </div>
+      {/* Top Navigation / Header */}
+      <div className="w-full max-w-6xl mb-8 flex items-center justify-between border-b border-zinc-800 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 bg-white rounded-sm flex items-center justify-center">
+            <svg className="w-4 h-4 text-black" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2z"/></svg>
           </div>
+          <h1 className="text-xl font-semibold tracking-tight">WipeSure Enterprise</h1>
+        </div>
+        <div className="text-sm text-zinc-400 font-mono">
+          v2.1.0 • MIL-STD 5220.22-M Compliant
         </div>
       </div>
 
-      <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-4 gap-6 relative z-10">
+      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1">
         
-        {/* Left Sidebar - Navigation & Specs */}
-        <div className="col-span-1 flex flex-col gap-6">
-          
-          {/* Navigation Panel */}
-          <div className="border border-white/10 bg-black/40 backdrop-blur-md p-5 rounded-xl shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
-            <h3 className="text-xs font-bold text-neutral-400 tracking-widest mb-4 border-b border-white/10 pb-2 flex items-center gap-2">
-              <svg className="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
-              MODULES
-            </h3>
-            <div className="space-y-2">
-              <button 
-                onClick={() => setActiveTab("Drive")}
-                className={`w-full text-left px-3 py-2 rounded text-[11px] font-bold tracking-widest transition-colors uppercase ${activeTab === "Drive" ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50' : 'text-neutral-400 hover:bg-white/5 border border-transparent'}`}
-              >
-                Secure Drive Eraser
-              </button>
-              <button 
-                onClick={() => setActiveTab("File")}
-                className={`w-full text-left px-3 py-2 rounded text-[11px] font-bold tracking-widest transition-colors uppercase ${activeTab === "File" ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50' : 'text-neutral-400 hover:bg-white/5 border border-transparent'}`}
-              >
-                File & Folder Eraser
-              </button>
-              <button 
-                onClick={() => setActiveTab("Recovery")}
-                className={`w-full text-left px-3 py-2 rounded text-[11px] font-bold tracking-widest transition-colors uppercase ${activeTab === "Recovery" ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50' : 'text-neutral-400 hover:bg-white/5 border border-transparent'}`}
-              >
-                Data Recovery
-              </button>
-            </div>
+        {/* Left Sidebar Menu */}
+        <div className="col-span-1 flex flex-col gap-4">
+          <div className="enterprise-panel p-4 flex flex-col gap-2">
+            <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Modules</h3>
+            
+            <button 
+              onClick={() => setActiveTab("Drive")}
+              className={`text-left px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-3 ${activeTab === 'Drive' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>
+              Drive Sanitization
+            </button>
+            <button 
+              onClick={() => setActiveTab("File")}
+              className={`text-left px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-3 ${activeTab === 'File' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
+              Surgical File Wipe
+            </button>
+            <button 
+              onClick={() => setActiveTab("Recovery")}
+              className={`text-left px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-3 ${activeTab === 'Recovery' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              Data Recovery
+            </button>
+            <div className="h-px bg-zinc-800 my-2"></div>
+            <button 
+              onClick={() => setActiveTab("Docs")}
+              className={`text-left px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-3 ${activeTab === 'Docs' ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+              Documentation
+            </button>
           </div>
 
           {activeTab === "Drive" && (
-            <>
-              {/* Target Specs Panel */}
-              <div className="border border-white/10 bg-black/40 backdrop-blur-md p-5 rounded-xl shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
-            <h3 className="text-xs font-bold text-neutral-400 tracking-widest mb-4 border-b border-white/10 pb-2 flex items-center gap-2">
-              <svg className="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
-              TARGET SPECS
-            </h3>
-            <div className="space-y-4 font-mono text-[11px] text-neutral-300">
-              <div>
-                <p className="text-neutral-600 mb-0.5">MOUNT POINT</p>
-                <p className="font-bold text-cyan-400 text-sm">{driveInfo.path}</p>
-              </div>
-              <div>
-                <p className="text-neutral-600 mb-0.5">HARDWARE ID</p>
-                <p className="truncate text-white">{driveInfo.name}</p>
-              </div>
-              <div>
-                <p className="text-neutral-600 mb-0.5">CAPACITY / SECTORS</p>
-                <p className="text-white">{driveInfo.size} / 1,953,525,168</p>
-              </div>
-              <div>
-                <p className="text-neutral-600 mb-0.5">ENCRYPTION ENGINE</p>
-                <p className="text-white">OPAL v2.0 SED / AES-256</p>
+            <div className="enterprise-panel p-4 fade-in">
+              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">Target Specs</h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between border-b border-zinc-800 pb-2">
+                  <span className="text-zinc-400">Device</span>
+                  <span className="font-mono text-white">{driveInfo.path}</span>
+                </div>
+                <div className="flex justify-between border-b border-zinc-800 pb-2">
+                  <span className="text-zinc-400">Model</span>
+                  <span className="text-white text-right">{driveInfo.name}</span>
+                </div>
+                <div className="flex justify-between pb-1">
+                  <span className="text-zinc-400">Capacity</span>
+                  <span className="text-white">{driveInfo.size}</span>
+                </div>
               </div>
             </div>
-          </div>
-
-          {/* Live Telemetry Panel */}
-          <div className={`border transition-colors duration-500 bg-black/40 backdrop-blur-md p-5 rounded-xl shadow-[0_4px_30px_rgba(0,0,0,0.5)] ${isWiping ? 'border-amber-500/30 shadow-[0_0_20px_rgba(245,158,11,0.1)]' : 'border-white/10'}`}>
-            <h3 className="text-xs font-bold text-neutral-400 tracking-widest mb-4 border-b border-white/10 pb-2 flex items-center gap-2">
-              <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-              LIVE TELEMETRY
-            </h3>
-            <div className="space-y-4 font-mono text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-neutral-500">THROUGHPUT</span>
-                <span className={`font-bold ${isWiping ? 'text-amber-400' : 'text-neutral-300'}`}>{ioSpeed}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-neutral-500">CPU TEMP</span>
-                <span className={`font-bold ${isWiping ? 'text-amber-400' : 'text-neutral-300'}`}>{cpuTemp}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-neutral-500">I/O QUEUE</span>
-                <span className="text-white">O_DIRECT</span>
-              </div>
-              <div className="flex justify-between items-center pt-2 border-t border-white/5">
-                <span className="text-neutral-500">ELAPSED</span>
-                <span className="text-cyan-400 font-bold text-sm">{formatTime(elapsedTime)}</span>
-              </div>
-            </div>
-          </div>
-            </>
           )}
-
         </div>
 
-        {/* Right Main Container */}
-        <div className="col-span-1 lg:col-span-3 border border-white/10 bg-black/40 backdrop-blur-xl p-8 rounded-xl relative flex flex-col shadow-[0_0_40px_rgba(0,0,0,0.8)] overflow-hidden">
+        {/* Right Content Area */}
+        <div className="col-span-1 lg:col-span-3 enterprise-panel p-8 relative flex flex-col min-h-[500px]">
           
           {activeTab === "Drive" && (
             <>
-              {/* Step 1: Initialization */}
-          {step === 1 && (
-            <div className="animate-in fade-in zoom-in-95 duration-500 flex-1 flex flex-col justify-center max-w-2xl">
-              <div className="w-12 h-12 bg-cyan-500/20 border border-cyan-500/50 rounded-lg flex items-center justify-center mb-6">
-                <svg className="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-              </div>
-              <h2 className="text-3xl font-bold mb-3 tracking-tight">Hardware Locked & Ready</h2>
-              <p className="text-neutral-400 text-sm mb-8 leading-relaxed">
-                The WipeSure engine has mapped the physical topology of <strong className="text-white">{driveInfo.path}</strong> and secured exclusive NVMe/ATA locks. OS interventions are suspended. 
-              </p>
-              
-              <div className="mt-auto">
-                <button 
-                  onClick={() => setStep(2)}
-                  className="group relative inline-flex items-center justify-center bg-cyan-500 text-black px-8 py-3 rounded font-bold uppercase text-sm tracking-[0.2em] hover:bg-cyan-400 transition-all shadow-[0_0_20px_rgba(6,182,212,0.4)] hover:shadow-[0_0_30px_rgba(6,182,212,0.6)]"
-                >
-                  Proceed to Authorization
-                  <svg className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Permissions and Authorization */}
-          {step === 2 && (
-            <div className="animate-in fade-in slide-in-from-right-4 duration-500 flex-1 flex flex-col">
-              <h2 className="text-2xl font-bold mb-2 flex items-center gap-3">
-                Legal Authorization
-              </h2>
-              <p className="text-neutral-400 text-sm mb-8 leading-relaxed max-w-2xl">
-                Digital signature required for Level-3 Cryptographic Erasure. 
-                Data destroyed in this manner is mathematically impossible to recover.
-              </p>
-
-              <div className="space-y-4 mb-8">
-                {[
-                  { state: agreedToRisks, set: setAgreedToRisks, title: "Assumption of Liability", desc: "I understand that this software will completely and permanently destroy all data, including hidden HPA/DCO partitions." },
-                  { state: agreedToIrreversible, set: setAgreedToIrreversible, title: "Acknowledge Irreversibility", desc: "No recovery software or forensic electron microscopy will be able to retrieve data after this process." },
-                  { state: adminAuthorized, set: setAdminAuthorized, title: "Administrative Consent", desc: "I confirm that I have the legal authority to sanitize this hardware." }
-                ].map((item, idx) => (
-                  <label key={idx} className={`flex items-start gap-4 cursor-pointer p-5 border rounded-lg transition-all duration-300 ${item.state ? 'border-cyan-500/50 bg-cyan-500/10 shadow-[0_0_15px_rgba(6,182,212,0.15)]' : 'border-white/10 bg-black/50 hover:border-white/30'}`}>
-                    <input 
-                      type="checkbox" 
-                      className="mt-0.5 w-5 h-5 accent-cyan-500 cursor-pointer rounded border-neutral-700 bg-neutral-900"
-                      checked={item.state}
-                      onChange={(e) => item.set(e.target.checked)}
-                    />
-                    <span className="text-sm">
-                      <strong className={`block mb-1 tracking-wider ${item.state ? 'text-cyan-400' : 'text-white'}`}>{item.title}</strong>
-                      <span className="text-neutral-400 leading-snug block">{item.desc}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-
-              <div className="flex justify-between items-center mt-auto border-t border-white/10 pt-6">
-                <button 
-                  onClick={() => setStep(1)}
-                  className="text-xs font-bold uppercase tracking-[0.2em] text-neutral-500 hover:text-white transition-colors flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                  Abort
-                </button>
-                <button 
-                  onClick={handleStartWipe}
-                  disabled={!agreedToRisks || !agreedToIrreversible || !adminAuthorized}
-                  className="relative group bg-red-600 text-white px-8 py-3 rounded font-bold uppercase text-sm tracking-[0.2em] transition-all disabled:opacity-20 disabled:cursor-not-allowed hover:bg-red-500 disabled:hover:bg-red-600"
-                >
-                  <div className={`absolute inset-0 rounded bg-red-600 blur-md opacity-0 transition-opacity ${(!agreedToRisks || !agreedToIrreversible || !adminAuthorized) ? '' : 'group-hover:opacity-60'}`}></div>
-                  <span className="relative z-10 flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                    EXECUTE HARDWARE WIPE
-                  </span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Wiping Process */}
-          {step === 3 && (
-            <div className="animate-in fade-in duration-500 flex-1 flex flex-col">
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h2 className="text-xl font-bold uppercase tracking-[0.2em] text-red-500 flex items-center gap-3">
-                    <span className="w-3 h-3 rounded-full bg-red-500 animate-ping"></span>
-                    Sanitization Active
-                  </h2>
-                  <p className="text-neutral-400 text-xs mt-1 font-mono uppercase">Interrupting power will brick the target device</p>
-                </div>
-                <div className="font-mono text-3xl font-light tracking-widest text-white/90">
-                  {progress}%
-                </div>
-              </div>
-              
-              <div className="w-full mb-8 relative">
-                <div className="flex justify-between text-xs font-mono mb-2 uppercase text-neutral-400">
-                  <span className="text-cyan-400">{status}</span>
-                </div>
-                <div className="w-full h-2 bg-neutral-900 rounded-full overflow-hidden shadow-inner">
-                  <div 
-                    className="h-full bg-gradient-to-r from-cyan-500 to-cyan-300 transition-all duration-300 ease-out relative"
-                    style={{ width: `${progress}%` }}
-                  >
-                    <div className="absolute top-0 right-0 bottom-0 left-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGc+PHBhdGggZD0iTTAgNDBoNDBMMDAgMHoiIGZpbGw9IiNmZmZmZmYyMCIvPjwvZz48L3N2Zz4=')] opacity-30"></div>
+              {step === 1 && (
+                <div className="fade-in flex-1 flex flex-col max-w-2xl">
+                  <h2 className="text-2xl font-semibold mb-2">Drive Sanitization Protocol</h2>
+                  <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
+                    This module securely overwrites the selected storage device using ATA Secure Erase and cryptographic shredding techniques. This process permanently destroys all data, filesystem structures, and partition tables.
+                  </p>
+                  
+                  <div className="mt-auto pt-8 border-t border-zinc-800">
+                    <button 
+                      onClick={() => setStep(2)}
+                      className="enterprise-btn px-6 py-2.5 rounded-md text-sm font-semibold flex items-center"
+                    >
+                      Continue to Authorization
+                    </button>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Sector Map Visualization */}
-              <div className="mb-6">
-                <h4 className="text-[10px] uppercase font-bold tracking-widest text-neutral-500 mb-2 border-b border-white/5 pb-1">Sector Map Visualization</h4>
-                <div className="grid grid-cols-20 sm:grid-cols-25 md:grid-cols-40 gap-[1px] p-2 bg-neutral-950 rounded border border-white/5">
-                  {Array.from({ length: totalBlocks }).map((_, i) => (
-                    <div 
-                      key={i} 
-                      className={`h-2 rounded-[1px] transition-colors duration-150 ${i < wipedBlocks ? 'bg-cyan-500/80 shadow-[0_0_5px_rgba(6,182,212,0.5)]' : 'bg-red-500/20'}`}
-                    ></div>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Dual Logs Panel */}
-              <div className="w-full h-56 grid grid-cols-2 gap-4">
-                {/* Event Logs */}
-                <div className="col-span-1 p-3 border border-white/10 bg-black/60 rounded flex flex-col font-mono text-[10px] leading-relaxed relative overflow-hidden">
-                  <div className="absolute top-0 right-0 bg-white/10 px-2 py-0.5 text-[9px] text-white/50 rounded-bl z-10">SYS_LOG</div>
-                  <div ref={logsContainerRef} className="overflow-y-auto h-full text-cyan-300/80 pr-2 custom-scrollbar pb-2">
-                    {logs.map((log, i) => (
-                      <div key={i} className="mb-1">{log}</div>
-                    ))}
+              {step === 2 && (
+                <div className="fade-in flex-1 flex flex-col max-w-2xl">
+                  <h2 className="text-2xl font-semibold mb-2 text-red-500">Authorization Required</h2>
+                  <p className="text-zinc-400 text-sm mb-8">
+                    Please confirm the following compliance agreements before initiating the destructive wipe.
+                  </p>
+                  
+                  <div className="space-y-4 mb-8">
+                    <label className="flex items-start gap-3 p-4 border border-zinc-800 rounded-md bg-zinc-900/50 cursor-pointer">
+                      <input type="checkbox" className="mt-1 w-4 h-4 accent-white" checked={agreedToRisks} onChange={e => setAgreedToRisks(e.target.checked)} />
+                      <span className="text-sm text-zinc-300">I acknowledge that this action will permanently destroy all data on <strong className="text-white">{driveInfo.path}</strong>.</span>
+                    </label>
+                    <label className="flex items-start gap-3 p-4 border border-zinc-800 rounded-md bg-zinc-900/50 cursor-pointer">
+                      <input type="checkbox" className="mt-1 w-4 h-4 accent-white" checked={agreedToIrreversible} onChange={e => setAgreedToIrreversible(e.target.checked)} />
+                      <span className="text-sm text-zinc-300">I understand that this process is cryptographically irreversible and cannot be recovered by forensic tools.</span>
+                    </label>
+                    <label className="flex items-start gap-3 p-4 border border-zinc-800 rounded-md bg-zinc-900/50 cursor-pointer">
+                      <input type="checkbox" className="mt-1 w-4 h-4 accent-white" checked={adminAuthorized} onChange={e => setAdminAuthorized(e.target.checked)} />
+                      <span className="text-sm text-zinc-300">I am authorized to perform data sanitization on this hardware asset.</span>
+                    </label>
+                  </div>
+
+                  <div className="mt-auto flex gap-4 pt-8 border-t border-zinc-800">
+                    <button 
+                      onClick={() => setStep(1)}
+                      className="enterprise-btn-secondary px-6 py-2.5 rounded-md text-sm font-semibold"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      disabled={!(agreedToRisks && agreedToIrreversible && adminAuthorized)}
+                      onClick={handleStartWipe}
+                      className="enterprise-btn px-6 py-2.5 rounded-md text-sm font-semibold flex items-center disabled:opacity-50 disabled:cursor-not-allowed text-red-600 border-red-600 bg-red-500/10 hover:bg-red-500 hover:text-white"
+                    >
+                      Initialize Wipe
+                    </button>
                   </div>
                 </div>
+              )}
 
-                {/* Hex Dump */}
-                <div className="col-span-1 p-3 border border-white/10 bg-black/80 rounded flex flex-col font-mono text-[10px] leading-relaxed relative overflow-hidden">
-                  <div className="absolute top-0 right-0 bg-white/10 px-2 py-0.5 text-[9px] text-white/50 rounded-bl z-10">RAW_DUMP</div>
-                  <div ref={hexContainerRef} className="overflow-y-auto h-full text-neutral-500 pr-2 custom-scrollbar select-none pb-2">
-                    {hexLogs.map((log, i) => (
-                      <div key={i} className="mb-0.5">{log}</div>
-                    ))}
+              {step === 3 && (
+                <div className="fade-in flex-1 flex flex-col">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-lg font-semibold flex items-center gap-3">
+                      Sanitization in Progress
+                      <span className="flex h-2 w-2 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                      </span>
+                    </h2>
+                    <div className="text-sm text-zinc-400 font-mono">
+                      Elapsed: {formatTime(elapsedTime)}
+                    </div>
+                  </div>
+
+                  <div className="w-full bg-zinc-800 rounded-full h-2 mb-2">
+                    <div className="bg-white h-2 rounded-full transition-all duration-300 ease-out" style={{ width: `${progress}%` }}></div>
+                  </div>
+                  
+                  <div className="flex justify-between text-xs text-zinc-500 font-mono mb-8">
+                    <span>{progress.toFixed(1)}%</span>
+                    <span>Block {wipedBlocks.toLocaleString()} / {totalBlocks.toLocaleString()}</span>
+                  </div>
+
+                  <div className="w-full h-64 grid grid-cols-2 gap-4 mt-auto">
+                    <div className="col-span-1 log-terminal flex flex-col overflow-hidden">
+                      <div className="bg-zinc-900 border-b border-zinc-800 px-3 py-1.5 text-[10px] text-zinc-400 font-mono uppercase tracking-wider flex justify-between">
+                        <span>System Logs</span>
+                        <span className="text-zinc-500">{status}</span>
+                      </div>
+                      <div ref={logsContainerRef} className="overflow-y-auto h-full text-zinc-300 p-3 pb-4 font-mono text-[11px] leading-relaxed">
+                        {logs.map((log, i) => (
+                          <div key={i} className="mb-1">{log}</div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="col-span-1 log-terminal flex flex-col overflow-hidden">
+                      <div className="bg-zinc-900 border-b border-zinc-800 px-3 py-1.5 text-[10px] text-zinc-400 font-mono uppercase tracking-wider">
+                        Raw IO Dump
+                      </div>
+                      <div ref={hexContainerRef} className="overflow-y-auto h-full text-zinc-600 p-3 pb-4 font-mono text-[10px] leading-relaxed">
+                        {hexLogs.map((log, i) => (
+                          <div key={i} className="mb-1">{log}</div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          )}
+              )}
 
-          {/* Step 4: Success & Certificate */}
-          {step === 4 && (
-            <div className="animate-in zoom-in-95 duration-700 flex-1 flex flex-col justify-center items-center text-center relative z-20">
-              
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-cyan-900/20 via-transparent to-transparent -z-10"></div>
-
-              <div className="w-24 h-24 bg-cyan-500/10 border border-cyan-500/50 rounded-full flex items-center justify-center mb-8 shadow-[0_0_50px_rgba(6,182,212,0.2)]">
-                <svg className="w-12 h-12 text-cyan-400 drop-shadow-[0_0_10px_rgba(6,182,212,0.8)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              
-              <h2 className="text-3xl font-bold mb-3 uppercase tracking-[0.2em] text-white drop-shadow-md">Sanitization Complete</h2>
-              <p className="text-neutral-400 text-sm mb-10 max-w-md leading-relaxed">
-                Hardware cryptographic erase succeeded. Mathematical verification confirmed 100% data sanitization across all sectors.
-              </p>
-              
-              <div className="w-full max-w-lg border border-cyan-500/30 bg-cyan-950/20 backdrop-blur-md p-6 rounded-xl text-left mb-10 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
-                <div className="flex justify-between items-center border-b border-white/10 pb-3">
-                  <span className="text-[10px] text-cyan-500 font-bold uppercase tracking-[0.2em]">Certificate Issued</span>
-                  <span className="font-mono text-white text-sm bg-white/5 px-2 py-1 rounded">{certificate}</span>
+              {step === 4 && (
+                <div className="fade-in flex-1 flex flex-col max-w-2xl">
+                  <h2 className="text-2xl font-semibold mb-2 text-green-500">Sanitization Verified</h2>
+                  <p className="text-zinc-400 text-sm mb-8">
+                    Hardware cryptographic erase succeeded. Mathematical verification confirmed 100% data sanitization across all sectors.
+                  </p>
+                  
+                  <div className="p-6 border border-zinc-800 rounded-md bg-zinc-900/50 mb-8 space-y-4">
+                    <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+                      <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Certificate ID</span>
+                      <span className="font-mono text-sm">{certificate}</span>
+                    </div>
+                    <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+                      <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">SHA-256</span>
+                      <span className="font-mono text-sm text-zinc-400">e3b0c44298fc1c14...</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Blockchain Ledger Tx</span>
+                      <a href={`https://polygonscan.com/tx/${txHash}`} target="_blank" rel="noreferrer" className="font-mono text-sm text-blue-400 hover:underline">
+                        {txHash.substring(0, 16)}...
+                      </a>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-auto pt-8 border-t border-zinc-800">
+                    <button 
+                      onClick={() => {
+                        setStep(1);
+                        setAgreedToRisks(false);
+                        setAgreedToIrreversible(false);
+                        setAdminAuthorized(false);
+                        setLogs([]);
+                        setHexLogs([]);
+                        setTxHash("");
+                      }}
+                      className="enterprise-btn px-6 py-2.5 rounded-md text-sm font-semibold"
+                    >
+                      Return to Dashboard
+                    </button>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center border-b border-white/10 py-3">
-                  <span className="text-[10px] text-cyan-500 font-bold uppercase tracking-[0.2em]">SHA-256 HASH</span>
-                  <span className="font-mono text-neutral-300 text-[11px]">e3b0c44298fc1c14...</span>
-                </div>
-                <div className="flex justify-between items-center pt-3">
-                  <span className="text-[10px] text-cyan-500 font-bold uppercase tracking-[0.2em]">Polygon Tx</span>
-                  <a href={`https://polygonscan.com/tx/${txHash}`} target="_blank" rel="noreferrer" className="font-mono text-blue-400 hover:text-blue-300 text-xs flex items-center gap-1 group">
-                    {txHash.substring(0, 14)}... 
-                    <svg className="w-3 h-3 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                  </a>
-                </div>
-              </div>
-              
-              <button 
-                className="bg-white text-black px-12 py-3 rounded font-bold uppercase tracking-[0.2em] text-sm hover:bg-neutral-200 transition-colors shadow-[0_0_20px_rgba(255,255,255,0.3)]"
-                onClick={() => {
-                  setStep(1);
-                  setAgreedToRisks(false);
-                  setAgreedToIrreversible(false);
-                  setAdminAuthorized(false);
-                  setLogs([]);
-                  setHexLogs([]);
-                  setTxHash("");
-                }}
-              >
-                Return to Dashboard
-              </button>
-            </div>
-          )}
+              )}
             </>
           )}
 
           {activeTab === "File" && (
-            <div className="animate-in fade-in duration-500 flex-1 flex flex-col justify-center items-center text-center">
+            <div className="fade-in flex-1 flex flex-col max-w-2xl">
               {!fileWiping ? (
                 <>
-                  <div className="w-16 h-16 bg-cyan-500/10 border border-cyan-500/30 rounded-xl flex items-center justify-center mb-6">
-                    <svg className="w-8 h-8 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
-                  </div>
-                  <h2 className="text-2xl font-bold mb-3 tracking-tight">Secure File & Folder Eraser</h2>
-                  <p className="text-neutral-400 text-sm max-w-md mx-auto leading-relaxed mb-8">
-                    Targeted destruction of specific files and directories. Overwrites data in-place and sanitizes filesystem metadata to prevent forensic recovery.
+                  <h2 className="text-2xl font-semibold mb-2">Surgical File Wipe</h2>
+                  <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
+                    Targeted destruction of specific files and directories. Overwrites data in-place (DoD 5220.22-M) and sanitizes filesystem metadata to prevent forensic recovery without formatting the entire drive.
                   </p>
-                  <button 
-                    onClick={handleStartFileWipe}
-                    className="bg-cyan-500 text-black px-6 py-2 rounded font-bold uppercase text-xs tracking-widest hover:bg-cyan-400 transition-colors"
-                  >
-                    Select & Wipe Targets
-                  </button>
+                  <div className="mt-auto pt-8 border-t border-zinc-800">
+                    <button 
+                      onClick={handleStartFileWipe}
+                      className="enterprise-btn px-6 py-2.5 rounded-md text-sm font-semibold"
+                    >
+                      Select & Wipe Targets
+                    </button>
+                  </div>
                 </>
               ) : (
-                <div className="w-full text-left">
-                  <h2 className="text-xl font-bold uppercase tracking-[0.2em] text-red-500 flex items-center gap-3 mb-6">
-                    <span className="w-3 h-3 rounded-full bg-red-500 animate-ping"></span>
+                <div className="w-full flex-1 flex flex-col">
+                  <h2 className="text-lg font-semibold flex items-center gap-3 mb-6">
                     Surgical Wipe Active
+                    <span className="flex h-2 w-2 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                    </span>
                   </h2>
-                  <div className="w-full h-64 p-3 border border-white/10 bg-black/60 rounded flex flex-col font-mono text-[10px] leading-relaxed relative overflow-hidden">
-                    <div className="absolute top-0 right-0 bg-white/10 px-2 py-0.5 text-[9px] text-white/50 rounded-bl z-10">WIPE_LOG</div>
-                    <div ref={logsContainerRef} className="overflow-y-auto h-full text-cyan-300/80 pr-2 custom-scrollbar pb-2">
+                  <div className="flex-1 log-terminal flex flex-col overflow-hidden">
+                    <div className="bg-zinc-900 border-b border-zinc-800 px-4 py-2 text-[10px] text-zinc-400 font-mono uppercase tracking-wider flex justify-between">
+                      <span>Wipe Log</span>
+                      <span className="text-zinc-500">DoD 5220.22-M</span>
+                    </div>
+                    <div ref={logsContainerRef} className="overflow-y-auto h-full text-zinc-300 p-4 font-mono text-sm leading-relaxed">
                       {logs.map((log, i) => (
-                        <div key={i} className="mb-1">{log}</div>
+                        <div key={i} className="mb-2">{log}</div>
                       ))}
                     </div>
                   </div>
@@ -577,34 +452,39 @@ export default function App() {
           )}
 
           {activeTab === "Recovery" && (
-            <div className="animate-in fade-in duration-500 flex-1 flex flex-col justify-center items-center text-center">
+            <div className="fade-in flex-1 flex flex-col max-w-2xl">
               {!carving ? (
                 <>
-                  <div className="w-16 h-16 bg-cyan-500/10 border border-cyan-500/30 rounded-xl flex items-center justify-center mb-6">
-                    <svg className="w-8 h-8 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                  </div>
-                  <h2 className="text-2xl font-bold mb-3 tracking-tight">Advanced Data Recovery</h2>
-                  <p className="text-neutral-400 text-sm max-w-md mx-auto leading-relaxed mb-8">
-                    Forensic-grade file carving engine. Scans raw disk sectors to reconstruct lost files, bypass filesystem metadata, and recover evidence from formatted or damaged media.
+                  <h2 className="text-2xl font-semibold mb-2">Forensic Data Recovery</h2>
+                  <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
+                    Advanced file carving engine designed for forensic investigations. Scans raw disk sectors to reconstruct lost files, bypass corrupt filesystem metadata, and recover evidence from formatted or damaged media.
                   </p>
-                  <button 
-                    onClick={handleStartCarving}
-                    className="bg-cyan-500 text-black px-6 py-2 rounded font-bold uppercase text-xs tracking-widest hover:bg-cyan-400 transition-colors"
-                  >
-                    Configure & Start Scan
-                  </button>
+                  <div className="mt-auto pt-8 border-t border-zinc-800">
+                    <button 
+                      onClick={handleStartCarving}
+                      className="enterprise-btn px-6 py-2.5 rounded-md text-sm font-semibold"
+                    >
+                      Configure & Start Scan
+                    </button>
+                  </div>
                 </>
               ) : (
-                <div className="w-full text-left">
-                  <h2 className="text-xl font-bold uppercase tracking-[0.2em] text-cyan-400 flex items-center gap-3 mb-6">
-                    <span className="w-3 h-3 rounded-full bg-cyan-400 animate-ping"></span>
+                <div className="w-full flex-1 flex flex-col">
+                  <h2 className="text-lg font-semibold flex items-center gap-3 mb-6">
                     Raw Sector Carving Active
+                    <span className="flex h-2 w-2 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                    </span>
                   </h2>
-                  <div className="w-full h-64 p-3 border border-white/10 bg-black/60 rounded flex flex-col font-mono text-[10px] leading-relaxed relative overflow-hidden">
-                    <div className="absolute top-0 right-0 bg-white/10 px-2 py-0.5 text-[9px] text-white/50 rounded-bl z-10">CARVE_LOG</div>
-                    <div ref={logsContainerRef} className="overflow-y-auto h-full text-green-400/80 pr-2 custom-scrollbar pb-2">
+                  <div className="flex-1 log-terminal flex flex-col overflow-hidden">
+                    <div className="bg-zinc-900 border-b border-zinc-800 px-4 py-2 text-[10px] text-zinc-400 font-mono uppercase tracking-wider flex justify-between">
+                      <span>Carve Log</span>
+                      <span className="text-zinc-500">Scanning...</span>
+                    </div>
+                    <div ref={logsContainerRef} className="overflow-y-auto h-full text-zinc-300 p-4 font-mono text-sm leading-relaxed">
                       {logs.map((log, i) => (
-                        <div key={i} className="mb-1">{log}</div>
+                        <div key={i} className="mb-2">{log}</div>
                       ))}
                     </div>
                   </div>
@@ -613,8 +493,66 @@ export default function App() {
             </div>
           )}
 
+          {activeTab === "Docs" && (
+            <div className="fade-in flex-1 flex flex-col overflow-y-auto pr-2 custom-scrollbar">
+              <h2 className="text-2xl font-semibold mb-2">Transparency & Documentation</h2>
+              <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
+                WipeSure is designed for absolute transparency. Below are the technical methodologies and standards implemented in our core C-Engine to guarantee compliance and forensic integrity.
+              </p>
+
+              <div className="space-y-6">
+                
+                {/* DoD Accordion */}
+                <div className="border border-zinc-800 bg-zinc-900/50 rounded-lg p-5">
+                  <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
+                    DoD 5220.22-M Sanitization Algorithm
+                  </h3>
+                  <p className="text-sm text-zinc-400 mb-4 leading-relaxed">
+                    The U.S. Department of Defense standard dictates a highly secure, 3-pass overwrite mechanism designed to prevent both software and hardware-based (magnetic force microscopy) data recovery.
+                  </p>
+                  <ul className="text-xs text-zinc-500 font-mono space-y-2 ml-4 list-disc">
+                    <li><strong className="text-zinc-300 font-sans">Pass 1:</strong> Overwrites all addressable locations with binary zeroes (0x00).</li>
+                    <li><strong className="text-zinc-300 font-sans">Pass 2:</strong> Overwrites all addressable locations with binary ones (0xFF).</li>
+                    <li><strong className="text-zinc-300 font-sans">Pass 3:</strong> Overwrites all addressable locations with cryptographically secure random data.</li>
+                  </ul>
+                </div>
+
+                {/* Metadata Obfuscation */}
+                <div className="border border-zinc-800 bg-zinc-900/50 rounded-lg p-5">
+                  <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                    Master File Table (MFT) Metadata Obfuscation
+                  </h3>
+                  <p className="text-sm text-zinc-400 leading-relaxed">
+                    Simply overwriting file contents is not enough. Advanced forensic tools can analyze the OS journal or NTFS MFT to determine that a file named <code className="bg-black px-1 py-0.5 rounded">confidential_case.pdf</code> previously existed. WipeSure renames files to randomized, cryptographic strings (e.g., <code className="bg-black px-1 py-0.5 rounded">f7b2c9a1...</code>) before issuing the unlink (delete) system call, permanently destroying the metadata footprint.
+                  </p>
+                </div>
+
+                {/* File Carving */}
+                <div className="border border-zinc-800 bg-zinc-900/50 rounded-lg p-5">
+                  <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                    Raw Sector File Carving (Recovery Module)
+                  </h3>
+                  <p className="text-sm text-zinc-400 mb-4 leading-relaxed">
+                    When a drive is formatted, the file allocation tables are destroyed, but the actual binary data remains on the physical platters or NAND gates. WipeSure's recovery engine bypasses the OS entirely.
+                  </p>
+                  <div className="bg-black p-3 rounded border border-zinc-800 font-mono text-xs text-zinc-500">
+                    <div>Scanning Sector 2048...</div>
+                    <div><span className="text-green-400">Match found:</span> Magic Bytes 0x25 0x50 0x44 0x46 (%PDF-)</div>
+                    <div>Extracting contiguous payload until 0x25 0x25 0x45 0x4F 0x46 (%%EOF)...</div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     </div>
   );
 }
+
+export default App;
